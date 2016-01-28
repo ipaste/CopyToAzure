@@ -206,6 +206,8 @@
             // Download the source object to a temporary file
             GetObjectRequest getObjectRequest = new GetObjectRequest(PocConfig.SourceBucket, objectSummary.Key);
 
+            
+
             using (OssObject ossObject = ossClient.GetObject(getObjectRequest))
             {
                 string tempFile = Path.Combine(tempFolder, Guid.NewGuid().ToString());
@@ -213,8 +215,19 @@
                 string sha256;
                 string relativeName = PocUtil.GetRelativeName(ossObject.Key, PocConfig.SourceDir);
 
+                // Check if the destination blob already exists.
+                CloudBlobContainer container = azureClient.GetContainerReference(PocConfig.DestContainer);
+                CloudBlockBlob destBlob = container.GetBlockBlobReference(PocUtil.GetFullName(relativeName, PocConfig.DestDir));
+
                 try
                 {
+                    if (destBlob.Exists(PocConstant.DefaultBlobRequestOptions))
+                    {
+                        Console.WriteLine("Dest already exist {0}", destBlob.Uri.ToString());
+                        pocManifest.AddFailed(relativeName, PocErrorString.DestAlreadyExist);
+                        return null;
+                    }
+
                     PocUtil.DownloadOssObject2File(ossObject, tempFile, out md5, out sha256);
                 }
                 catch(Exception e)
